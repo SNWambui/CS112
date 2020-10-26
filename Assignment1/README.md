@@ -1,0 +1,1 @@
+This assignment assessed introductory to intermediate understanding in R. It used a simple dataset on UN peacekeeping with the aim of replicating a study on the representation of women serving in the military, police etc.
