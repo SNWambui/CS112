@@ -96,7 +96,6 @@ sprintf("The smallest p-value after matching is: %s", match.bal$AMsmallest.p.val
 sprintf("The variable with smallest p-value after matching is: %s", match.bal$AMsmallestVarName)
 sprintf("The estimate of the treatment effect is: %s", match.pctVV$est)
 ```
-##For Chika, the table above should be printed in latex
 
 From the table, we can see that the balance improved since the all the p-values of the increased. We also plot a few balance plots to show the distribution before and after for some of the covariates as shown below. This goes on to reiterate the fact the distribution between the control and treatment group is more similar after matching since balance improved.
 
@@ -118,6 +117,5 @@ For the extension, we assess the sensitivity to hidden bias. Hidden bias occurs 
 #perform a sensitivity analysis
 psens(match.pctVV , Gamma=1.5, GammaInc=.1)
 ```
-## For Chika, could you check how to interpret these results and work on limitations and conclusion, also check on how to export these tables to excel
 
 
