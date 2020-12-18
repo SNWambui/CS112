@@ -1,0 +1,123 @@
+---
+title: "CS112_Final_Project"
+author: "Stevedavies Wambui and Chika Jinanwa"
+date: "12/13/2020"
+output:
+  pdf_document: default
+  word_document: default
+---
+```{r include=FALSE}
+install.packages('xtable', repos = "http://cran.us.r-project.org")
+```
+```{r}
+install.packages('rbounds', repos = "http://cran.us.r-project.org")
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, 
+                      message=FALSE, fig.width=8, fig.align="center")
+
+#load the necessary libraries
+library(Matching)
+library(xtable)
+library(gridExtra)
+library(cobalt)
+library(rbounds)
+```
+
+# Executive Summary
+In this report, we attempt to replicate Boas and Hidaglo (2011) study on the effect of control of community radio by politicians on the electrol outcomes. In the study, they performed matching on control and treatment groups. We do the same and observe that the minimum p-value we obtain is slightly higher than the minimum p-value obtained by Boas and Hidaglo (2011). In addition, we do a sensitivity analysis to measure the effect of hidden bias (to note results). This is an important extension because Boas and Hidaglo (2011) note that 'it is likely that some unobserved confounders remain unaccounted for and that our estimates will contain a degree of bias,' even after they took several measures to reduce the effects of confounders
+
+# Dataset
+For the matching, they use a dataset that contains multiple candidates applications and municipal-level covariates between 2004 and 2008. These covariates include socioeconomic characteristics of the candidates, features of the municipalities where 'they run for office, and past electoral performance for those candidates who ran in previous elections'. The treatment group (n=311) is defined as those candidates whose radio stations had received a broadcasting 45 days to the election and before free campaign had began in radio and television and therefore could operate during the campaign. The candidates who received the licenses within the 45 days (rather than before) as well as those who were approved before elections but only got their licenses after were excluded. The control group was defined as those candidates who applied for a community radio license in similar municipalities as those in the treated group but had not gotten any 'positive response before
+the relevant elections—either because their applications were rejected at any time (n = 907), received ministerial approval only after the election (n = 94), or were still pending as of June 2009 (n = 143).'(Boas and Hidaglo, 2011). Candidates who were never applied or applied after the elections were excluded as well as candidates from large cities with more than 2 million people because the treated group was from smaller municipalities.
+
+# Replication
+Boas and Hidaglo (2011) used genetic matching to 'isolate the effect of community radio control on electoral outcome' in an effort to simulate an causal experiment. The goal of this is to make the distribution of covariates in the treatment and control group similar to make the groups comparable. Boas and Hidaglo (2011) dropped some covariates and observations while adding others and they provided the rationale for this. For example, they dropped the time since application because it was very influential in treatment assignment that obtaining good balance was impossible. They noted that this does not have a direct causal link to the electoral outcome. 
+
+We replicate table 3 which checks the balance of covariates before and after matching. We also show the distribution of some of the covariates before and after matching. They used ATT in genetic matching which checks the average treatment effect for the treated group. In the replication code provided, though they passed in the genetic output in the Match function, they do not provide the specific code for the GenMatch function. We confirm that the parameters for genetic matching passed in the Match function are available in the RData provided that is the covariates are in one dataframe and the genetic matching output is available. It would have been more informative if we could see what parameters they passed in for their genetic matching.
+
+
+An important note is: to run the matching, you have to download the data here(insert as link: https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/YMZPAO) and load it to your working documentary
+
+From the results of genetic matching, we can see that the minimum p-value after matching is 0.074 for log total assets. The minimum p-value they obtained was 0.071 for the same variable. This is expected since genetic algorithm is stochastic and even with the same parameters, we can get different values within a certain range. Moreover, we computed the treatment effect after matching and found it to be 0.39 which means that there is an observed effect of the control of media on the outcomes of elections.
+
+```{r}
+#see the first 5 rows of the dataset
+head(match.data)
+```
+
+
+```{r}
+#confirm there are no null values
+colSums(is.na(match.data))
+```
+
+```{r}
+#check the structure of the dataset
+str(match.data)
+```
+```{r}
+head(genmatch.covar)
+```
+```{r}
+genmatch.output[5]
+```
+
+```{r}
+
+match.pctVV <- Match(Y= match.data$pctVV, Tr = match.data$treat, X = genmatch.covar, Weight.matrix=genmatch.output, BiasAdjust=FALSE, caliper = c(rep(10,43),.5))
+match.elected <- Match(Y= match.data$elected, Tr = match.data$treat, X = genmatch.covar, Weight.matrix=genmatch.output,  caliper = c(rep(10,43),.5), BiasAdjust=FALSE)
+bal.data <- with(match.data, data.frame(match.party, male, occ, edu, yob, lat, long, ran.prior, incumbent, log.valid.votes, prior.pctVV, party.prior.pctVV, elec.year, log.total.assets, gini_2000, pt_pres_1998, income_2000, psdb_2000, pt_2000, hdi_2000, uf.ba, uf.sp, uf.mg, uf.rs, log.num.apps))
+bal.fmla <- as.formula(paste("treat~",paste(names(bal.data),collapse="+")))
+match.bal <- MatchBalance(bal.fmla, data = data.frame(treat = match.data$treat, bal.data), match.out = match.pctVV,nboots=3000, print.level=0)
+before.sd.diff <- sapply(match.bal$BeforeMatching, function(x) x[[1]])
+after.sd.diff <- sapply(match.bal$AfterMatching, function(x) x[[1]])
+before.t.p <- matrix(sapply(match.bal$BeforeMatching, function(x) x$tt[3]))
+after.t.p <- matrix(sapply(match.bal$AfterMatching, function(x) x$tt[3]))
+before.ks.p <- matrix(sapply(match.bal$BeforeMatching, function(x) x$ks$ks.boot.pvalue))
+after.ks.p <- matrix(sapply(match.bal$AfterMatching, function(x) x$ks$ks.boot.pvalue))
+bal.stats <- data.frame(var = names(data.frame(model.matrix(as.formula(paste("~",paste(names(bal.data),collapse="+"))), bal.data)[,-1])), before.sd.diff, after.sd.diff, before.t.p = unlist(before.t.p), after.t.p = unlist(after.t.p), before.ks.p, after.ks.p)
+bal.stats <- bal.stats[c(4,6,12,15,18:27,29:49),]
+rownames(bal.stats)  <- c("Party: PFL", "Party: PMDB", "Party: PSDB", "Party: PT", "Male", "Occupation: Blue Collar", "Occupation: Education", "Occupation: Government", "Occupation: Media", "Occupation: None", "Occupation: Other", "Occupation: Politician", "Occupation: White Collar", "Education: Some Superior or More", "Year of Birth", "Latitude", "Longitude", "Ran Previously", "Incumbency", "Log Electorate", "Prior Vote Share", "Party Prior Vote Share", "Election Year", "Total Assets", "2000 Gini", "PT Pres Vote Share (1998)", "GDP Per Capita (2000)", "PSDB Mayor Vote Share (2000)", "PT Mayor Vote Share (2000)", "HDI (2000)", "State: Bahia", "State: Sao Paulo", "State: Minas Gerais", "State: Rio Grande do Sul", "Log Number of Applications")
+bal.stats$before.ks.p[bal.stats$before.ks.p=="NULL"] <- NA
+bal.stats$after.ks.p[bal.stats$after.ks.p=="NULL"] <- NA
+bal.stats$before.ks.p <- unlist(bal.stats$before.ks.p)
+bal.stats$after.ks.p <- unlist(bal.stats$after.ks.p)
+bal.stats <- bal.stats[order(abs(bal.stats$before.sd.diff), decreasing = TRUE),]
+bal.stats <- bal.stats[,-1]
+bal.check.table <- xtable(bal.stats, display=c("s",rep("fg",6)), caption = "Balance Statistics")
+digits(bal.check.table) <-2
+align(bal.check.table) <- "r|rrrrrr"
+print(bal.check.table,latex.environment = "center", include.rownames = TRUE,hline.after=c(0,nrow(bal.check.table)),floating.environment = "sidewaystable")
+```
+```{r}
+sprintf("The smallest p-value after matching is: %s", match.bal$AMsmallest.p.value)
+sprintf("The variable with smallest p-value after matching is: %s", match.bal$AMsmallestVarName)
+sprintf("The estimate of the treatment effect is: %s", match.pctVV$est)
+```
+##For Chika, the table above should be printed in latex
+
+From the table, we can see that the balance improved since the all the p-values of the increased. We also plot a few balance plots to show the distribution before and after for some of the covariates as shown below. This goes on to reiterate the fact the distribution between the control and treatment group is more similar after matching since balance improved.
+
+```{r}
+#check the balance of some of the covariates before and after matching
+occ_bal <- bal.plot(match.pctVV , "match.partyPCB", treat = match.data$treat, covs = genmatch.covar, type = "histogram", mirror = TRUE, which = "both")
+num_app_bal <- bal.plot(match.pctVV , "log.num.apps", treat = match.data$treat, covs = genmatch.covar, type = "histogram", mirror = TRUE, which = "both")
+assets_bal <- bal.plot(match.pctVV , "log.total.assets", treat = match.data$treat, covs = genmatch.covar, type = "histogram", mirror = TRUE, which = "both")
+educ_bal <- bal.plot(match.pctVV , "occEducation", treat = match.data$treat, covs = genmatch.covar, type = "histogram", mirror = TRUE, which = "both")
+
+#display plots in a grid
+grid.arrange(occ_bal, num_app_bal, assets_bal, educ_bal, nrow = 2)
+```
+
+# Extension
+For the extension, we assess the sensitivity to hidden bias. Hidden bias occurs due to baseline differences that were not measured or removed by matching or stratification caused by confounders we did not observe. As they mentioned, matching cannot completely remove the effects of unobserved outcomes but we can assess whether these unobserved confounders have a large enough effect. Ideally, we want a large gamma so that our results are more robust and small changes will not affect the results. We perform the Rosenbaum sensitivity analysis. For this, we need to find the value of gamma that changes the p-value from being significant to not significant. We set a gamma value of 1.5 and increment it by 0.1. Gamma is the ratio of the propensity scores of 2 units that appear identical but may not be because there may be hidden bias. We use the psens function from the rbounds package. 
+
+```{r}
+#perform a sensitivity analysis
+psens(match.pctVV , Gamma=1.5, GammaInc=.1)
+```
+## For Chika, could you check how to interpret these results and work on limitations and conclusion, also check on how to export these tables to excel
+
+
